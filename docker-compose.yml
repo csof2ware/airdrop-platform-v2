@@ -1,0 +1,53 @@
+services:
+  dev:
+    build: .
+    command: sleep infinity
+    volumes:
+      - .:/app
+      - /app/node_modules
+    ports:
+      - "8545:8545"
+      - "3000:3000"
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: airdrop
+      POSTGRES_PASSWORD: airdrop
+      POSTGRES_DB: airdrop
+    ports:
+      - "5432:5432"
+  graph-postgres:
+    image: postgres:13
+    environment:
+      POSTGRES_USER: graph
+      POSTGRES_PASSWORD: graph
+      POSTGRES_DB: graphnode
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    ports:
+      - "5433:5432"
+  ipfs:
+    image: ipfs/kubo:latest
+    ports:
+      - "4001:4001"
+      - "5001:5001"
+      - "8080:8080"
+  graph-node:
+    image: graphprotocol/graph-node:v0.35.0
+    ports:
+      - "8000:8000"
+      - "8020:8020"
+    depends_on:
+      - ipfs
+      - graph-postgres
+    environment:
+      postgres_host: graph-postgres
+      postgres_user: graph
+      postgres_pass: graph
+      postgres_db: graphnode
+      ipfs: "ipfs:5001"
+      ethereum: "localhost:http://host.docker.internal:8545"
+      GRAPH_LOG: info

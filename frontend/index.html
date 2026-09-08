@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Airdrop Platform — Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/ethers@6.13.2/dist/ethers.umd.min.js"></script>
+<style>
+  body { font-family: monospace; background: #0f172a; color: #e2e8f0; margin: 0; padding: 24px; }
+  h1 { color: #a78bfa; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+  .card { background: #1e293b; border-radius: 12px; padding: 16px; }
+  .card h3 { margin: 0 0 12px; color: #94a3b8; font-size: 13px; text-transform: uppercase; }
+  button { background: #7c3aed; color: white; border: 0; padding: 10px; border-radius: 8px; cursor: pointer; width: 100%; margin: 4px 0; }
+  button:disabled { opacity: 0.4; }
+  .muted { color: #94a3b8; font-size: 12px; word-break: break-all; }
+  .badge { display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: 12px; margin: 2px; }
+  .ok { background: #065f46; } .down { background: #7f1d1d; }
+  table { width: 100%; font-size: 12px; border-collapse: collapse; }
+  td { padding: 4px 6px; border-bottom: 1px solid #334155; }
+  pre { font-size: 11px; color: #86efac; white-space: pre-wrap; }
+  .big { font-size: 22px; color: #fbbf24; }
+</style>
+</head>
+<body>
+<h1>Airdrop Platform — Dashboard</h1>
+<p class="muted" id="rootShort"></p>
+<div class="grid">
+
+  <div class="card">
+    <h3>Carteira</h3>
+    <p class="muted" id="addr">desconectado</p>
+    <p class="muted" id="ethBal"></p>
+    <p class="muted" id="balToken"></p>
+    <p class="muted" id="balSigned"></p>
+    <button id="connectBtn" onclick="connect()">Conectar MetaMask</button>
+    <button id="claimBtn" onclick="claimMerkle()" disabled>Claim Merkle</button>
+    <button id="voucherBtn" onclick="claimVoucher()" disabled>Claim via Voucher EIP-712</button>
+    <p class="muted" id="txInfo"></p>
+  </div>
+
+  <div class="card">
+    <h3>Stats on-chain (Postgres)</h3>
+    <p>holders: <span class="big" id="statHolders">-</span></p>
+    <p>total mintado: <span class="big" id="statMinted">-</span></p>
+    <p>ultimo bloco indexado: <span class="big" id="statBlock">-</span></p>
+  </div>
+
+  <div class="card">
+    <h3>Health do sistema</h3>
+    <span class="badge down" id="hRedis">redis ?</span>
+    <span class="badge down" id="hPg">postgres ?</span>
+    <span class="badge down" id="hRpc">rpc ?</span>
+    <pre id="metrics"></pre>
+  </div>
+
+  <div class="card">
+    <h3>Top 10 holders</h3>
+    <table id="lb"></table>
+  </div>
+
+</div>
+<script>
+var API = "http://localhost:3000";
+var cfg = null, provider = null, signer = null, myAddress = null;
+
+function setTxt(id, t) { document.getElementById(id).textContent = t; }
+
+fetch(API + "/config").then(function (r) { return r.json(); }).then(function (c) {
+  cfg = c;
+  setTxt("rootShort", "Merkle root: " + c.root.slice(0, 18) + "... | airdrop: " + c.airdropAddress.slice(0, 10) + "... | signed: " + c.signedAddress.slice(0, 10) + "...");
+});
+
+async function connect() {
+  if (!window.ethereum) { alert("Instale a MetaMask"); return; }
+  provider = new ethers.BrowserProvider(window.ethereum);
+  await provider.send("eth_requestAccounts", []);
+  var net = await provider.getNetwork();
+  if (Number(net.chainId) !== 31337) { alert("Troque para a rede Hardhat Local (31337)"); return; }
+  signer = await provider.getSigner();
+  myAddress = await signer.getAddress();
+  setTxt("addr", myAddress);
+  setTxt("ethBal", "ETH: " + ethers.formatEther(await provider.getBalance(myAddress)));
+  document.getElementById("claimBtn").disabled = false;
+  document.getElementById("voucherBtn").disabled = false;
+  await refreshBalances();
+}
+
+async function refreshBalances() {
+  if (!myAddress || !cfg) return;
+  var abi = ["function balanceOf(address,uint256) view returns (uint256)"];
+  var t1 = new ethers.Contract(cfg.address, abi, provider);
+  setTxt("balToken", "AirdropToken (batch): " + (await t1.balanceOf(myAddress, 0)).toString());
+  var t2 = new ethers.Contract(cfg.signedAddress, abi, provider);
+  setTxt("balSigned", "SignedAirdrop (voucher): " + (await t2.balanceOf(myAddress, 0)).toString());
+}
+
+async function claimMerkle() {
+  var pr = await fetch(API + "/proof/" + myAddress);
+  if (!pr.ok) { alert("Endereco nao elegivel na allowlist Merkle"); return; }
+  var proof = (await pr.json()).proof;
+  var c = new ethers.Contract(cfg.airdropAddress, ["function claim(bytes32[] proof)"], signer);
+  var tx = await c.claim(proof);
+  setTxt("txInfo", "Tx Merkle enviada: " + tx.hash);
+  await tx.wait();
+  await refreshBalances();
+}
+
+async function claimVoucher() {
+  var vr = await fetch(API + "/voucher/" + myAddress);
+  if (!vr.ok) { alert("Voucher indisponivel"); return; }
+  var v = await vr.json();
+  var c = new ethers.Contract(cfg.signedAddress, ["function claim(address,uint256,uint256,bytes)"], signer);
+  var tx = await c.claim(myAddress, v.amount, v.nonce, v.signature);
+  setTxt("txInfo", "Tx voucher enviada: " + tx.hash);
+  await tx.wait();
+  await refreshBalances();
+}
+
+async function refreshDash() {
+  try {
+    var s = await (await fetch(API + "/stats")).json();
+    setTxt("statHolders", s.holders);
+    setTxt("statMinted", s.totalMinted);
+    setTxt("statBlock", s.lastBlock);
+  } catch (e) {}
+  try {
+    var h = await (await fetch(API + "/health")).json();
+    var map = [["hRedis", "redis", h.checks.redis], ["hPg", "postgres", h.checks.postgres], ["hRpc", "rpc", h.checks.rpc]];
+    for (var i = 0; i < map.length; i++) {
+      var el = document.getElementById(map[i][0]);
+      el.textContent = map[i][1] + ": " + map[i][2];
+      el.className = "badge " + (map[i][2] === "ok" ? "ok" : "down");
+    }
+  } catch (e) {}
+  try {
+    setTxt("metrics", await (await fetch(API + "/metrics")).text());
+  } catch (e) {}
+  try {
+    var hs = await (await fetch(API + "/holders")).json();
+    var rows = "";
+    for (var j = 0; j < hs.length && j < 10; j++) {
+      rows = rows + "<tr><td>" + hs[j].address.slice(0, 12) + "...</td><td>" + hs[j].balance + "</td></tr>";
+    }
+    document.getElementById("lb").innerHTML = rows;
+  } catch (e) {}
+}
+setInterval(refreshDash, 5000);
+refreshDash();
+</script>
+</body>
+</html>
