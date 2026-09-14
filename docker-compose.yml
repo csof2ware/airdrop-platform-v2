@@ -36,7 +36,7 @@ services:
       - "5001:5001"
       - "8080:8080"
   graph-node:
-    image: graphprotocol/graph-node:v0.35.0
+    image: graphprotocol/graph-node:latest
     ports:
       - "8000:8000"
       - "8020:8020"
@@ -49,5 +49,5 @@ services:
       postgres_pass: graph
       postgres_db: graphnode
       ipfs: "ipfs:5001"
-      ethereum: "localhost:http://host.docker.internal:8545"
+      ethereum: "local:http://dev:8545"
       GRAPH_LOG: info

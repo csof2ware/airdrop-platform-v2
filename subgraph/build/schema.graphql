@@ -1,0 +1,17 @@
+type Holder @entity(immutable: false) {
+  id: ID!
+  address: Bytes!
+  balance: BigInt!
+  transferCount: Int!
+}
+
+type TransferSingle @entity(immutable: true) {
+  id: ID!
+  operator: Bytes!
+  from: Bytes!
+  to: String!
+  tokenId: BigInt!
+  value: BigInt!
+  blockNumber: BigInt!
+  txHash: Bytes!
+}
