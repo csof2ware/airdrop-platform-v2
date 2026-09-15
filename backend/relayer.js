@@ -1,0 +1,80 @@
+const express = require("express");
+const { ethers } = require("ethers");
+const fs = require("fs");
+
+const signed = JSON.parse(fs.readFileSync("backend/signed.json"));
+const provider = new ethers.JsonRpcProvider("http://127.0.0.1:8545");
+const RELAYER_KEY = "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a";
+const relayer = new ethers.Wallet(RELAYER_KEY, provider);
+const DEPLOYER_KEY = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
+const deployer = new ethers.Wallet(DEPLOYER_KEY, provider);
+
+const contract = new ethers.Contract(signed.address, [
+  "function claim(address claimant, uint256 amount, uint256 nonce, bytes sig)",
+  "function used(uint256) view returns (bool)",
+  "function balanceOf(address, uint256) view returns (uint256)"
+], relayer);
+
+const domain = { name: "AirdropPlatform", version: "1", chainId: 31337, verifyingContract: signed.address };
+const types = { Claim: [
+  { name: "claimant", type: "address" },
+  { name: "amount", type: "uint256" },
+  { name: "nonce", type: "uint256" }
+] };
+
+async function ensureGas() {
+  for (let i = 0; i < 30; i++) {
+    try {
+      const bal = await provider.getBalance(relayer.address);
+      if (bal < ethers.parseEther("0.1")) {
+        console.log("Relayer sem gas - financiando 1 ETH via deployer...");
+        const tx = await deployer.sendTransaction({ to: relayer.address, value: ethers.parseEther("1") });
+        await tx.wait();
+        console.log("Relayer financiado: " + tx.hash.slice(0, 18));
+      }
+      console.log("Relayer pronto, balance: " + ethers.formatEther(await provider.getBalance(relayer.address)) + " ETH");
+      return;
+    } catch (e) {
+      if (i === 29) throw new Error("RPC nao respondeu em 30 tentativas");
+      process.stdout.write(".");
+      await new Promise(r => setTimeout(r, 1000));
+    }
+  }
+}
+
+const app = express();
+app.use(express.json());
+
+app.post("/relay", async function (req, res) {
+  const b = req.body;
+  const value = { claimant: b.claimant, amount: b.amount, nonce: b.nonce };
+  let recovered;
+  try {
+    recovered = ethers.verifyTypedData(domain, types, value, b.sig);
+  } catch (e) {
+    return res.status(400).json({ error: "sig malformada" });
+  }
+  if (recovered.toLowerCase() !== signed.authority.toLowerCase()) {
+    return res.status(403).json({ error: "assinatura nao e da authority" });
+  }
+  if (await contract.used(b.nonce)) {
+    return res.status(409).json({ error: "nonce ja usado (replay bloqueado)" });
+  }
+  try {
+    const tx = await contract.claim(b.claimant, b.amount, b.nonce, b.sig); const receipt = await tx.wait();
+    await tx.wait();
+    const balance = await contract.balanceOf(b.claimant, 0);
+    console.log("Claim gasless minerada: " + tx.hash.slice(0, 18) + " | saldo: " + balance);
+    res.json({ txHash: receipt.hash, blockNumber: receipt.blockNumber, newBalance: balance.toString() });
+  } catch (e) {
+    res.status(500).json({ error: "tx revert: " + (e.reason || e.message) });
+  }
+});
+
+app.get("/health", async function (req, res) {
+  res.json({ relayer: relayer.address, balance: (await provider.getBalance(relayer.address)).toString() });
+});
+
+ensureGas().then(function () {
+  app.listen(3002, function () { console.log("Relayer gasless no ar: http://localhost:3002"); });
+}).catch(function (e) { console.error("FATAL: " + e.message); process.exit(1); });

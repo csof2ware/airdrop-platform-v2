@@ -23,3 +23,24 @@ dataSources:
         - event: TransferSingle(indexed address,indexed address,indexed address,uint256,uint256)
           handler: handleTransferSingle
       file: AirdropToken/AirdropToken.wasm
+  - kind: ethereum
+    name: SignedAirdrop
+    network: local
+    source:
+      address: "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9"
+      abi: SignedAirdrop
+      startBlock: 0
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - Holder
+        - TransferSingle
+      abis:
+        - name: SignedAirdrop
+          file: SignedAirdrop/SignedAirdrop.json
+      eventHandlers:
+        - event: TransferSingle(indexed address,indexed address,indexed address,uint256,uint256)
+          handler: handleTransferSingle
+      file: AirdropToken/AirdropToken.wasm

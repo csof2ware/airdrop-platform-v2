@@ -7,6 +7,7 @@ const metrics = require("./metrics");
 const rl = require("./ratelimit");
 
 const cfg = JSON.parse(fs.readFileSync("backend/config.json"));
+const signedCfg = JSON.parse(fs.readFileSync("backend/signed.json"));
 const redis = new Redis("redis://redis:6379");
 const app = express();
 app.use(express.json());
