@@ -1,151 +1,318 @@
 <!DOCTYPE html>
-<html>
+<html lang="pt-BR">
 <head>
-<meta charset="utf-8">
-<title>Airdrop Platform — Dashboard</title>
-<script src="https://cdn.jsdelivr.net/npm/ethers@6.13.2/dist/ethers.umd.min.js"></script>
-<style>
-  body { font-family: monospace; background: #0f172a; color: #e2e8f0; margin: 0; padding: 24px; }
-  h1 { color: #a78bfa; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
-  .card { background: #1e293b; border-radius: 12px; padding: 16px; }
-  .card h3 { margin: 0 0 12px; color: #94a3b8; font-size: 13px; text-transform: uppercase; }
-  button { background: #7c3aed; color: white; border: 0; padding: 10px; border-radius: 8px; cursor: pointer; width: 100%; margin: 4px 0; }
-  button:disabled { opacity: 0.4; }
-  .muted { color: #94a3b8; font-size: 12px; word-break: break-all; }
-  .badge { display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: 12px; margin: 2px; }
-  .ok { background: #065f46; } .down { background: #7f1d1d; }
-  table { width: 100%; font-size: 12px; border-collapse: collapse; }
-  td { padding: 4px 6px; border-bottom: 1px solid #334155; }
-  pre { font-size: 11px; color: #86efac; white-space: pre-wrap; }
-  .big { font-size: 22px; color: #fbbf24; }
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gasless Airdrop</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .container {
+      background: white;
+      border-radius: 16px;
+      padding: 40px;
+      max-width: 600px;
+      width: 100%;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    h1 {
+      color: #667eea;
+      margin-bottom: 10px;
+      font-size: 28px;
+    }
+    .subtitle {
+      color: #666;
+      margin-bottom: 30px;
+      font-size: 14px;
+    }
+    .form-group {
+      margin-bottom: 20px;
+    }
+    label {
+      display: block;
+      margin-bottom: 8px;
+      color: #333;
+      font-weight: 500;
+      font-size: 14px;
+    }
+    input {
+      width: 100%;
+      padding: 12px 16px;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: monospace;
+      transition: border-color 0.2s;
+    }
+    input:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+    button {
+      width: 100%;
+      padding: 14px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.1s, box-shadow 0.2s;
+    }
+    button:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+    }
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    .result {
+      margin-top: 20px;
+      padding: 16px;
+      border-radius: 8px;
+      font-size: 14px;
+      display: none;
+    }
+    .result.success {
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+    .result.error {
+      background: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+    .result a {
+      color: inherit;
+      font-weight: 600;
+    }
+    .stats {
+      margin-top: 30px;
+      padding-top: 30px;
+      border-top: 2px solid #f0f0f0;
+    }
+    .stats h3 {
+      color: #667eea;
+      margin-bottom: 16px;
+      font-size: 18px;
+    }
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      font-size: 14px;
+    }
+    .stat-label {
+      color: #666;
+    }
+    .stat-value {
+      color: #333;
+      font-weight: 600;
+      font-family: monospace;
+    }
+    .holders-list {
+      margin-top: 16px;
+    }
+    .holder {
+      padding: 12px;
+      background: #f8f9fa;
+      border-radius: 8px;
+      margin-bottom: 8px;
+      font-size: 13px;
+    }
+    .holder-address {
+      font-family: monospace;
+      color: #667eea;
+      font-weight: 600;
+    }
+    .holder-balance {
+      color: #28a745;
+      font-weight: 600;
+    }
+    .loading {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid #fff;
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-right: 8px;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
 </head>
 <body>
-<h1>Airdrop Platform — Dashboard</h1>
-<p class="muted" id="rootShort"></p>
-<div class="grid">
+  <div class="container">
+    <h1>🚀 Gasless Airdrop</h1>
+    <p class="subtitle">Claim tokens sem pagar gas — relayer paga por você</p>
 
-  <div class="card">
-    <h3>Carteira</h3>
-    <p class="muted" id="addr">desconectado</p>
-    <p class="muted" id="ethBal"></p>
-    <p class="muted" id="balToken"></p>
-    <p class="muted" id="balSigned"></p>
-    <button id="connectBtn" onclick="connect()">Conectar MetaMask</button>
-    <button id="claimBtn" onclick="claimMerkle()" disabled>Claim Merkle</button>
-    <button id="voucherBtn" onclick="claimVoucher()" disabled>Claim via Voucher EIP-712</button>
-    <p class="muted" id="txInfo"></p>
+    <form id="claimForm">
+      <div class="form-group">
+        <label for="claimant">Seu endereço</label>
+        <input
+          type="text"
+          id="claimant"
+          placeholder="0x..."
+          value="0x36c2402Db92B35B2eDd07D017758102eaa905483"
+          required
+        />
+      </div>
+      <div class="form-group">
+        <label for="amount">Quantidade</label>
+        <input type="number" id="amount" value="10" min="1" required />
+      </div>
+      <button type="submit" id="submitBtn">
+        <span id="btnText">Claim Gasless</span>
+      </button>
+    </form>
+
+    <div class="result" id="result"></div>
+
+    <div class="stats">
+      <h3>📊 Estatísticas</h3>
+      <div class="stat-row">
+        <span class="stat-label">Total de holders:</span>
+        <span class="stat-value" id="totalHolders">-</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">Tokens mintados:</span>
+        <span class="stat-value" id="totalMinted">-</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">Último bloco:</span>
+        <span class="stat-value" id="lastBlock">-</span>
+      </div>
+
+      <div class="holders-list" id="holdersList"></div>
+    </div>
   </div>
 
-  <div class="card">
-    <h3>Stats on-chain (Postgres)</h3>
-    <p>holders: <span class="big" id="statHolders">-</span></p>
-    <p>total mintado: <span class="big" id="statMinted">-</span></p>
-    <p>ultimo bloco indexado: <span class="big" id="statBlock">-</span></p>
-  </div>
+  <script>
+    const GRAPH_URL = 'http://graph-node:8000/subgraphs/name/airdrop-v2';
+    const SIGNER_URL = 'http://localhost:3001/sign';
+    const RELAYER_URL = 'http://localhost:3002/relay';
+    const STATS_URL = 'http://localhost:3000/stats';
 
-  <div class="card">
-    <h3>Health do sistema</h3>
-    <span class="badge down" id="hRedis">redis ?</span>
-    <span class="badge down" id="hPg">postgres ?</span>
-    <span class="badge down" id="hRpc">rpc ?</span>
-    <pre id="metrics"></pre>
-  </div>
+    async function claimGasless(claimant, amount) {
+      // 1) Pede assinatura pro signer
+      const signRes = await fetch(SIGNER_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ claimant, amount: String(amount) })
+      });
+      if (!signRes.ok) throw new Error('Signer falhou');
+      const signed = await signRes.json();
 
-  <div class="card">
-    <h3>Top 10 holders</h3>
-    <table id="lb"></table>
-  </div>
-
-</div>
-<script>
-var API = "http://localhost:3000";
-var cfg = null, provider = null, signer = null, myAddress = null;
-
-function setTxt(id, t) { document.getElementById(id).textContent = t; }
-
-fetch(API + "/config").then(function (r) { return r.json(); }).then(function (c) {
-  cfg = c;
-  setTxt("rootShort", "Merkle root: " + c.root.slice(0, 18) + "... | airdrop: " + c.airdropAddress.slice(0, 10) + "... | signed: " + c.signedAddress.slice(0, 10) + "...");
-});
-
-async function connect() {
-  if (!window.ethereum) { alert("Instale a MetaMask"); return; }
-  provider = new ethers.BrowserProvider(window.ethereum);
-  await provider.send("eth_requestAccounts", []);
-  var net = await provider.getNetwork();
-  if (Number(net.chainId) !== 31337) { alert("Troque para a rede Hardhat Local (31337)"); return; }
-  signer = await provider.getSigner();
-  myAddress = await signer.getAddress();
-  setTxt("addr", myAddress);
-  setTxt("ethBal", "ETH: " + ethers.formatEther(await provider.getBalance(myAddress)));
-  document.getElementById("claimBtn").disabled = false;
-  document.getElementById("voucherBtn").disabled = false;
-  await refreshBalances();
-}
-
-async function refreshBalances() {
-  if (!myAddress || !cfg) return;
-  var abi = ["function balanceOf(address,uint256) view returns (uint256)"];
-  var t1 = new ethers.Contract(cfg.address, abi, provider);
-  setTxt("balToken", "AirdropToken (batch): " + (await t1.balanceOf(myAddress, 0)).toString());
-  var t2 = new ethers.Contract(cfg.signedAddress, abi, provider);
-  setTxt("balSigned", "SignedAirdrop (voucher): " + (await t2.balanceOf(myAddress, 0)).toString());
-}
-
-async function claimMerkle() {
-  var pr = await fetch(API + "/proof/" + myAddress);
-  if (!pr.ok) { alert("Endereco nao elegivel na allowlist Merkle"); return; }
-  var proof = (await pr.json()).proof;
-  var c = new ethers.Contract(cfg.airdropAddress, ["function claim(bytes32[] proof)"], signer);
-  var tx = await c.claim(proof);
-  setTxt("txInfo", "Tx Merkle enviada: " + tx.hash);
-  await tx.wait();
-  await refreshBalances();
-}
-
-async function claimVoucher() {
-  var vr = await fetch(API + "/voucher/" + myAddress);
-  if (!vr.ok) { alert("Voucher indisponivel"); return; }
-  var v = await vr.json();
-  var c = new ethers.Contract(cfg.signedAddress, ["function claim(address,uint256,uint256,bytes)"], signer);
-  var tx = await c.claim(myAddress, v.amount, v.nonce, v.signature);
-  setTxt("txInfo", "Tx voucher enviada: " + tx.hash);
-  await tx.wait();
-  await refreshBalances();
-}
-
-async function refreshDash() {
-  try {
-    var s = await (await fetch(API + "/stats")).json();
-    setTxt("statHolders", s.holders);
-    setTxt("statMinted", s.totalMinted);
-    setTxt("statBlock", s.lastBlock);
-  } catch (e) {}
-  try {
-    var h = await (await fetch(API + "/health")).json();
-    var map = [["hRedis", "redis", h.checks.redis], ["hPg", "postgres", h.checks.postgres], ["hRpc", "rpc", h.checks.rpc]];
-    for (var i = 0; i < map.length; i++) {
-      var el = document.getElementById(map[i][0]);
-      el.textContent = map[i][1] + ": " + map[i][2];
-      el.className = "badge " + (map[i][2] === "ok" ? "ok" : "down");
+      // 2) Envia pro relayer
+      const relayRes = await fetch(RELAYER_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(signed)
+      });
+      if (!relayRes.ok) {
+        const err = await relayRes.json();
+        throw new Error(err.error || 'Relayer falhou');
+      }
+      return await relayRes.json();
     }
-  } catch (e) {}
-  try {
-    setTxt("metrics", await (await fetch(API + "/metrics")).text());
-  } catch (e) {}
-  try {
-    var hs = await (await fetch(API + "/holders")).json();
-    var rows = "";
-    for (var j = 0; j < hs.length && j < 10; j++) {
-      rows = rows + "<tr><td>" + hs[j].address.slice(0, 12) + "...</td><td>" + hs[j].balance + "</td></tr>";
+
+    async function loadStats() {
+      try {
+        const res = await fetch(STATS_URL);
+        const stats = await res.json();
+        document.getElementById('totalHolders').textContent = stats.holders;
+        document.getElementById('totalMinted').textContent = stats.totalMinted;
+        document.getElementById('lastBlock').textContent = stats.lastBlock;
+      } catch (e) {
+        console.error('Erro ao carregar stats:', e);
+      }
     }
-    document.getElementById("lb").innerHTML = rows;
-  } catch (e) {}
-}
-setInterval(refreshDash, 5000);
-refreshDash();
-</script>
+
+    async function loadHolders() {
+      try {
+        const res = await fetch(GRAPH_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query: '{ holders(first: 5, orderBy: balance, orderDirection: desc) { id balance transferCount } }'
+          })
+        });
+        const data = await res.json();
+        const holdersList = document.getElementById('holdersList');
+        holdersList.innerHTML = '<h3 style="margin-top: 20px;">👥 Top 5 Holders</h3>';
+        data.data.holders.forEach(h => {
+          holdersList.innerHTML += `
+            <div class="holder">
+              <div class="holder-address">${h.id.slice(0, 6)}...${h.id.slice(-4)}</div>
+              <div>Balance: <span class="holder-balance">${h.balance}</span> | Transfers: ${h.transferCount}</div>
+            </div>
+          `;
+        });
+      } catch (e) {
+        console.error('Erro ao carregar holders:', e);
+      }
+    }
+
+    document.getElementById('claimForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('submitBtn');
+      const btnText = document.getElementById('btnText');
+      const result = document.getElementById('result');
+      const claimant = document.getElementById('claimant').value;
+      const amount = document.getElementById('amount').value;
+
+      btn.disabled = true;
+      btnText.innerHTML = '<span class="loading"></span>Processando...';
+      result.style.display = 'none';
+
+      try {
+        const tx = await claimGasless(claimant, amount);
+        result.className = 'result success';
+        result.innerHTML = `
+          ✅ Claim minerada!<br>
+          TX: <a href="#" onclick="alert('Explorer nao disponivel em hardhat local')">${tx.txHash.slice(0, 18)}...</a><br>
+          Bloco: ${tx.blockNumber} | Novo saldo: ${tx.newBalance}
+        `;
+        result.style.display = 'block';
+
+        // Recarrega stats após 2s
+        setTimeout(() => {
+          loadStats();
+          loadHolders();
+        }, 2000);
+      } catch (e) {
+        result.className = 'result error';
+        result.textContent = '❌ ' + e.message;
+        result.style.display = 'block';
+      } finally {
+        btn.disabled = false;
+        btnText.textContent = 'Claim Gasless';
+      }
+    });
+
+    // Carrega stats iniciais
+    loadStats();
+    loadHolders();
+
+    // Polling a cada 5s
+    setInterval(() => {
+      loadStats();
+      loadHolders();
+    }, 5000);
+  </script>
 </body>
 </html>
