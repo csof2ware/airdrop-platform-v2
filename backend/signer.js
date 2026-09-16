@@ -1,3 +1,4 @@
+require("dotenv").config();
 const express = require("express");
 const Redis = require("ioredis");
 const { ethers } = require("ethers");
@@ -5,7 +6,8 @@ const fs = require("fs");
 
 const signed = JSON.parse(fs.readFileSync("backend/signed.json"));
 const provider = new ethers.JsonRpcProvider("http://127.0.0.1:8545");
-const AUTHORITY_KEY = "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d";
+const AUTHORITY_KEY = process.env.AUTHORITY_KEY;
+if (!AUTHORITY_KEY) { console.error("FATAL: AUTHORITY_KEY ausente"); process.exit(1); }
 const authority = new ethers.Wallet(AUTHORITY_KEY, provider);
 const redis = new Redis("redis://redis:6379");
 

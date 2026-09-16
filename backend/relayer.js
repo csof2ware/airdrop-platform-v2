@@ -1,12 +1,14 @@
+require("dotenv").config();
 const express = require("express");
 const { ethers } = require("ethers");
 const fs = require("fs");
 
 const signed = JSON.parse(fs.readFileSync("backend/signed.json"));
 const provider = new ethers.JsonRpcProvider("http://127.0.0.1:8545");
-const RELAYER_KEY = "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a";
+const RELAYER_KEY = process.env.RELAYER_KEY;
+if (!RELAYER_KEY) { console.error("FATAL: RELAYER_KEY ausente"); process.exit(1); }
 const relayer = new ethers.Wallet(RELAYER_KEY, provider);
-const DEPLOYER_KEY = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
+const DEPLOYER_KEY = process.env.DEPLOYER_KEY;
 const deployer = new ethers.Wallet(DEPLOYER_KEY, provider);
 
 const contract = new ethers.Contract(signed.address, [
