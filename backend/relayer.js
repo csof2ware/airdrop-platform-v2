@@ -11,6 +11,7 @@ const deployer = new ethers.Wallet(DEPLOYER_KEY, provider);
 
 const contract = new ethers.Contract(signed.address, [
   "function claim(address claimant, uint256 amount, uint256 nonce, bytes sig)",
+  "function batchClaim(address[] claimants, uint256[] amounts, uint256[] nonces, bytes[] sigs)",
   "function used(uint256) view returns (bool)",
   "function balanceOf(address, uint256) view returns (uint256)"
 ], relayer);
@@ -29,15 +30,15 @@ async function ensureGas() {
       if (bal < ethers.parseEther("0.1")) {
         console.log("Relayer sem gas - financiando 1 ETH via deployer...");
         const tx = await deployer.sendTransaction({ to: relayer.address, value: ethers.parseEther("1") });
-        await tx.wait();
-        console.log("Relayer financiado: " + tx.hash.slice(0, 18));
+        const receipt = await tx.wait();
+        console.log("Relayer financiado: " + receipt.hash.slice(0, 18));
       }
       console.log("Relayer pronto, balance: " + ethers.formatEther(await provider.getBalance(relayer.address)) + " ETH");
       return;
     } catch (e) {
       if (i === 29) throw new Error("RPC nao respondeu em 30 tentativas");
       process.stdout.write(".");
-      await new Promise(r => setTimeout(r, 1000));
+      await new Promise(function (r) { setTimeout(r, 1000); });
     }
   }
 }
@@ -61,13 +62,57 @@ app.post("/relay", async function (req, res) {
     return res.status(409).json({ error: "nonce ja usado (replay bloqueado)" });
   }
   try {
-    const tx = await contract.claim(b.claimant, b.amount, b.nonce, b.sig); const receipt = await tx.wait();
-    await tx.wait();
+    const tx = await contract.claim(b.claimant, b.amount, b.nonce, b.sig);
+    const receipt = await tx.wait();
     const balance = await contract.balanceOf(b.claimant, 0);
-    console.log("Claim gasless minerada: " + tx.hash.slice(0, 18) + " | saldo: " + balance);
+    console.log("Claim gasless minerada: " + receipt.hash.slice(0, 18) + " | saldo: " + balance);
     res.json({ txHash: receipt.hash, blockNumber: receipt.blockNumber, newBalance: balance.toString() });
   } catch (e) {
     res.status(500).json({ error: "tx revert: " + (e.reason || e.message) });
+  }
+});
+
+app.post("/relay-batch", async function (req, res) {
+  const claims = req.body.claims;
+  if (!Array.isArray(claims) || claims.length === 0) {
+    return res.status(400).json({ error: "claims deve ser array nao vazio" });
+  }
+  const claimants = [];
+  const amounts = [];
+  const nonces = [];
+  const sigs = [];
+  for (const claim of claims) {
+    const value = { claimant: claim.claimant, amount: claim.amount, nonce: claim.nonce };
+    let recovered;
+    try {
+      recovered = ethers.verifyTypedData(domain, types, value, claim.sig);
+    } catch (e) {
+      return res.status(400).json({ error: "sig malformada no nonce " + claim.nonce });
+    }
+    if (recovered.toLowerCase() !== signed.authority.toLowerCase()) {
+      return res.status(403).json({ error: "assinatura invalida no nonce " + claim.nonce });
+    }
+    if (await contract.used(claim.nonce)) {
+      return res.status(409).json({ error: "nonce " + claim.nonce + " ja usado" });
+    }
+    claimants.push(claim.claimant);
+    amounts.push(claim.amount);
+    nonces.push(claim.nonce);
+    sigs.push(claim.sig);
+  }
+  try {
+    console.log("Enviando batch de " + claims.length + " claims...");
+    const tx = await contract.batchClaim(claimants, amounts, nonces, sigs);
+    const receipt = await tx.wait();
+    console.log("Batch minerado: " + receipt.hash.slice(0, 18) + " (" + claims.length + " claims)");
+    res.json({
+      txHash: receipt.hash,
+      blockNumber: receipt.blockNumber,
+      claimsProcessed: claims.length,
+      gasUsed: receipt.gasUsed.toString()
+    });
+  } catch (e) {
+    res.status(500).json({ error: "batch revert: " + (e.reason || e.message) });
   }
 });
 

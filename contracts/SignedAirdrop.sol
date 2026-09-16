@@ -30,6 +30,26 @@ contract SignedAirdrop is ERC1155, EIP712, Ownable {
         _mint(claimant, 0, amount, "");
     }
 
+    function batchClaim(
+        address[] calldata claimants,
+        uint256[] calldata amounts,
+        uint256[] calldata nonces,
+        bytes[] calldata sigs
+    ) external {
+        require(claimants.length == amounts.length, "length mismatch");
+        require(claimants.length == nonces.length, "length mismatch");
+        require(claimants.length == sigs.length, "length mismatch");
+
+        for (uint256 i = 0; i < claimants.length; i++) {
+            require(!used[nonces[i]], "nonce used");
+            bytes32 structHash = keccak256(abi.encode(CLAIM_TYPEHASH, claimants[i], amounts[i], nonces[i]));
+            bytes32 digest = _hashTypedDataV4(structHash);
+            require(ECDSA.recover(digest, sigs[i]) == authority, "bad signature");
+            used[nonces[i]] = true;
+            _mint(claimants[i], 0, amounts[i], "");
+        }
+    }
+
     function setAuthority(address a) external onlyOwner {
         authority = a;
     }

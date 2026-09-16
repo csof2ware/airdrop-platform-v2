@@ -1,20 +1,24 @@
 const fs = require('fs');
 const path = require('path');
+
 const cfg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'backend', 'config.json'), 'utf8'));
+const signedCfg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'backend', 'signed.json'), 'utf8'));
 const yamlPath = path.join(__dirname, '..', 'subgraph', 'subgraph.yaml');
 
-console.log('chaves config.json: ' + Object.keys(cfg).join(', '));
-function pick() {
-  for (var i = 0; i < arguments.length; i++) {
-    if (cfg[arguments[i]]) return cfg[arguments[i]];
+console.log('config.json keys: ' + Object.keys(cfg).join(', '));
+console.log('signed.json keys: ' + Object.keys(signedCfg).join(', '));
+
+function pick(obj) {
+  for (var i = 1; i < arguments.length; i++) {
+    if (obj[arguments[i]]) return obj[arguments[i]];
   }
   return null;
 }
 
 var map = {
-  token:  pick('address', 'token', 'airdropToken'),
-  merkle: pick('merkleAirdrop', 'airdrop', 'merkle'),
-  signed: pick('signedAirdrop', 'signed')
+  token: pick(cfg, 'address', 'token', 'airdropToken'),
+  merkle: pick(cfg, 'merkleAirdrop', 'airdrop', 'merkle'),
+  signed: signedCfg.address
 };
 
 function nameToKey(n) {
@@ -26,27 +30,27 @@ function nameToKey(n) {
 
 var current = null;
 var changed = 0;
-var lines = fs.readFileSync(yamlPath, 'utf8').split('\n').map(function(line) {
-  var mName = line.match(/^  - name:\s*(\S+)/);
+var lines = fs.readFileSync(yamlPath, 'utf8').split('\n').map(function (line) {
+  var mName = line.match(/^    name:\s*(\S+)/);
   if (mName) current = mName[1];
-  
-  var mAddr = line.match(/^(\s*address:\s*)(0x[0-9a-fA-F]{40})\s*$/);
+
+  var mAddr = line.match(/^(\s*address:\s*)"?(0x[0-9a-fA-F]{40})"?\s*$/);
   if (mAddr && current) {
     var novo = map[nameToKey(current)];
     if (novo && novo.toLowerCase() !== mAddr[2].toLowerCase()) {
       changed++;
       console.log('address ' + current + ': ' + mAddr[2] + ' -> ' + novo);
-      return mAddr[1] + novo;
+      return mAddr[1] + '"' + novo + '"';
     }
   }
-  
+
   var mSb = line.match(/^(\s*startBlock:\s*)(\d+)\s*$/);
   if (mSb && mSb[2] !== '0') {
     changed++;
     console.log('startBlock ' + current + ': ' + mSb[2] + ' -> 0');
     return mSb[1] + '0';
   }
-  
+
   return line;
 });
 

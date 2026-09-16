@@ -41,4 +41,25 @@ app.post("/sign", async function (req, res) {
   res.json({ claimant: claimant, amount: amount, nonce: nonce, sig: sig });
 });
 
+app.post("/sign-batch", async function (req, res) {
+  const claims = req.body.claims;
+  if (!Array.isArray(claims) || claims.length === 0) {
+    return res.status(400).json({ error: "claims deve ser array nao vazio" });
+  }
+  const results = [];
+  for (const claim of claims) {
+    if (!ethers.isAddress(claim.claimant)) continue;
+    const nonce = await redis.incr("signed-nonce");
+    const value = { claimant: claim.claimant, amount: claim.amount || "1", nonce: nonce };
+    const sig = await authority.signTypedData(domain, types, value);
+    results.push({ claimant: claim.claimant, amount: claim.amount || "1", nonce: nonce, sig: sig });
+  }
+  console.log("Batch assinado: " + results.length + " claims");
+  res.json({ claims: results });
+});
+
+app.get("/queue", async function (req, res) {
+  res.json({ size: await redis.llen("claims") });
+});
+
 app.listen(3001, function () { console.log("Signer EIP-712 no ar: http://localhost:3001"); });
